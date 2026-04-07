@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: fintrack_db
+    environment:
+      POSTGRES_USER: fintrack
+      POSTGRES_PASSWORD: fintrack123
+      POSTGRES_DB: fintrack_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    container_name: fintrack_backend
+    ports:
+      - "4000:4000"
+    environment:
+      - DATABASE_URL=postgresql://fintrack:fintrack123@postgres:5432/fintrack_db
+      - JWT_SECRET=fintrack_super_secret_2025
+      - PORT=4000
+    depends_on:
+      - postgres
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  frontend:
+    build: ./frontend
+    container_name: fintrack_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  pgdata:
