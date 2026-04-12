@@ -52,6 +52,13 @@ async function initDB() {
         fecha_pago DATE NOT NULL DEFAULT CURRENT_DATE,
         nota       VARCHAR(255)
       );
+
+      CREATE TABLE IF NOT EXISTS recomendaciones_ia (
+        id_recomendacion SERIAL PRIMARY KEY,
+        id_usuario       INTEGER REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+        mensaje          TEXT NOT NULL,
+        fecha            TIMESTAMP DEFAULT NOW()
+      );
     `);
     console.log('✅ Base de datos inicializada correctamente');
   } catch (err) {
