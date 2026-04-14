@@ -32,6 +32,33 @@ async function initDB() {
         categoria   VARCHAR(100) NOT NULL,
         fecha       DATE NOT NULL DEFAULT CURRENT_DATE
       );
+
+      CREATE TABLE IF NOT EXISTS deudas (
+        id_deuda     SERIAL PRIMARY KEY,
+        id_usuario   INTEGER REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+        nombre       VARCHAR(150) NOT NULL,
+        monto_total  DECIMAL(10,2) NOT NULL,
+        saldo_actual DECIMAL(10,2) NOT NULL,
+        interes      DECIMAL(5,2)  NOT NULL DEFAULT 0,
+        fecha_inicio DATE NOT NULL DEFAULT CURRENT_DATE,
+        fecha_fin    DATE,
+        estado       VARCHAR(20)   NOT NULL DEFAULT 'activa'
+      );
+
+      CREATE TABLE IF NOT EXISTS pagos (
+        id_pago    SERIAL PRIMARY KEY,
+        id_deuda   INTEGER REFERENCES deudas(id_deuda) ON DELETE CASCADE,
+        monto      DECIMAL(10,2) NOT NULL,
+        fecha_pago DATE NOT NULL DEFAULT CURRENT_DATE,
+        nota       VARCHAR(255)
+      );
+
+      CREATE TABLE IF NOT EXISTS recomendaciones_ia (
+        id_recomendacion SERIAL PRIMARY KEY,
+        id_usuario       INTEGER REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+        mensaje          TEXT NOT NULL,
+        fecha            TIMESTAMP DEFAULT NOW()
+      );
     `);
     console.log('✅ Base de datos inicializada correctamente');
   } catch (err) {
