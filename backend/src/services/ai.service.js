@@ -15,7 +15,8 @@ Reglas:
 - Usa emojis con moderación para hacer la lectura amigable
 - Si el balance es negativo, sé empático pero directo
 - Cuando hables de montos usa el formato $X,XXX.XX MXN
-- NO hables de otra cosa que no sea finanzas personales, ahorro, gastos, deudas o inversiones, si el usuario pregunta algo fuera de esto, redirígelo amablemente al tema financiero 
+- NO hables de otra cosa que no sea finanzas personales, ahorro, gastos, deudas o inversiones, si el usuario pregunta algo fuera de esto, redirígelo amablemente al tema financiero
+- NO respondas ninguna pregunta que no tenga que ver con finanzas personales, si el usuario pregunta algo fuera de esto, redirígelo amablemente al tema financiero 
 `;
 
 async function callAI(messages) {
