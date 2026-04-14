@@ -1,11 +1,15 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import toast from 'react-hot-toast';
 import api from '@/services/api';
+import Navbar from '@/components/Navbar';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import EmptyState from '@/components/EmptyState';
+import ConfirmModal from '@/components/ConfirmModal';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Cell
+  Tooltip, ResponsiveContainer
 } from 'recharts';
 
 const ESTADO_COLOR = {
@@ -14,120 +18,120 @@ const ESTADO_COLOR = {
   vencida: { bg: 'bg-red-100',    text: 'text-red-600',    label: 'Vencida' },
 };
 
-// ── Navbar reutilizable ─────────────────────────────────
-function Navbar() {
-  const router = useRouter();
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('usuario');
-    router.push('/login');
-  };
-  return (
-    <nav className="bg-white border-b px-6 py-4 flex justify-between items-center shadow-sm">
-      <span className="text-blue-600 font-bold text-xl">FinTrack AI</span>
-      <div className="flex gap-6 text-sm font-medium text-gray-500">
-        <Link href="/dashboard" className="hover:text-blue-600">Dashboard</Link>
-        <Link href="/ingresos"  className="hover:text-blue-600">Ingresos</Link>
-        <Link href="/gastos"    className="hover:text-blue-600">Gastos</Link>
-        <Link href="/deudas"    className="text-blue-600 border-b-2 border-blue-600 pb-0.5">Deudas</Link>
-        <Link href="/asistente" className="hover:text-blue-600">IA ✨</Link>
-      </div>
-      <button onClick={logout}
-        className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg">
-        Salir
-      </button>
-    </nav>
-  );
-}
-
-// ── Modal formulario deuda ──────────────────────────────
-function FormDeuda({ onClose, onSaved, editData }) {
+// ── Modal formulario nueva deuda ─────────────────────
+function FormModal({ onClose, onSaved }) {
   const [form, setForm] = useState({
-    nombre:      editData?.nombre      || '',
-    monto_total: editData?.monto_total || '',
-    interes:     editData?.interes     || '',
-    fecha_inicio: editData?.fecha_inicio?.split('T')[0] || new Date().toISOString().split('T')[0],
-    fecha_fin:    editData?.fecha_fin?.split('T')[0]    || '',
+    nombre:      '',
+    monto_total: '',
+    interes:     '',
+    fecha_inicio: new Date().toISOString().split('T')[0],
+    fecha_fin:    '',
   });
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setError('');
+    if (!form.nombre.trim()) { toast.error('El nombre es requerido'); return; }
+    if (!form.monto_total || parseFloat(form.monto_total) <= 0) {
+      toast.error('El monto debe ser mayor a 0'); return;
+    }
     setLoading(true);
     try {
-      if (editData) {
-        await api.put(`/api/deudas/${editData.id_deuda}`, {
-          ...form, saldo_actual: editData.saldo_actual, estado: editData.estado
-        });
-      } else {
-        await api.post('/api/deudas', form);
-      }
+      await api.post('/api/deudas', form);
+      toast.success('Deuda registrada ✓');
       onSaved();
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al guardar');
+      toast.error(err.response?.data?.error || 'Error al guardar');
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4">
-        <h3 className="text-lg font-bold text-gray-800 mb-4">
-          {editData ? 'Editar deuda' : 'Nueva deuda'}
-        </h3>
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 rounded-lg p-3 mb-4 text-sm">
-            {error}
-          </div>
-        )}
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 animate-fade-in-up">
+        <div className="flex justify-between items-center mb-5">
+          <h3 className="text-lg font-bold text-gray-800">🧾 Nueva deuda</h3>
+          <button onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8
+              flex items-center justify-center rounded-lg hover:bg-gray-100">
+            ×
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de la deuda</label>
-            <input type="text" required value={form.nombre}
+            <label className="block text-sm font-semibold text-gray-600 mb-1.5">
+              Nombre de la deuda
+            </label>
+            <input type="text" required
+              value={form.nombre}
               onChange={e => setForm({...form, nombre: e.target.value})}
-              placeholder="Ej: Tarjeta Banamex"
-              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+              placeholder="Ej: Tarjeta Banamex, Préstamo personal"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm
+                focus:outline-none focus:ring-2 focus:ring-orange-400" />
           </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Monto total ($)</label>
-              <input type="number" required min="0.01" step="0.01" value={form.monto_total}
-                onChange={e => setForm({...form, monto_total: e.target.value})}
-                placeholder="0.00"
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+              <label className="block text-sm font-semibold text-gray-600 mb-1.5">
+                Monto total ($)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                <input type="number" required min="0.01" step="0.01"
+                  value={form.monto_total}
+                  onChange={e => setForm({...form, monto_total: e.target.value})}
+                  placeholder="0.00"
+                  className="w-full pl-7 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm
+                    focus:outline-none focus:ring-2 focus:ring-orange-400" />
+              </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Interés anual (%)</label>
-              <input type="number" min="0" max="200" step="0.1" value={form.interes}
+              <label className="block text-sm font-semibold text-gray-600 mb-1.5">
+                Interés anual (%)
+              </label>
+              <input type="number" min="0" max="200" step="0.1"
+                value={form.interes}
                 onChange={e => setForm({...form, interes: e.target.value})}
                 placeholder="Ej: 24"
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm
+                  focus:outline-none focus:ring-2 focus:ring-orange-400" />
             </div>
           </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha inicio</label>
-              <input type="date" value={form.fecha_inicio}
+              <label className="block text-sm font-semibold text-gray-600 mb-1.5">
+                Fecha inicio
+              </label>
+              <input type="date"
+                value={form.fecha_inicio}
                 onChange={e => setForm({...form, fecha_inicio: e.target.value})}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm
+                  focus:outline-none focus:ring-2 focus:ring-orange-400" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha límite</label>
-              <input type="date" value={form.fecha_fin}
+              <label className="block text-sm font-semibold text-gray-600 mb-1.5">
+                Fecha límite
+              </label>
+              <input type="date"
+                value={form.fecha_fin}
                 onChange={e => setForm({...form, fecha_fin: e.target.value})}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm
+                  focus:outline-none focus:ring-2 focus:ring-orange-400" />
             </div>
           </div>
-          <div className="flex gap-3 pt-2">
+
+          <div className="flex gap-3 pt-1">
             <button type="submit" disabled={loading}
-              className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white font-semibold py-2.5 rounded-lg transition-colors">
-              {loading ? 'Guardando...' : editData ? 'Actualizar' : 'Guardar'}
+              className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300
+                text-white font-bold py-2.5 rounded-xl transition-colors">
+              {loading ? 'Guardando...' : 'Guardar deuda'}
             </button>
             <button type="button" onClick={onClose}
-              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-lg transition-colors">
+              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700
+                font-bold py-2.5 rounded-xl transition-colors">
               Cancelar
             </button>
           </div>
@@ -137,16 +141,29 @@ function FormDeuda({ onClose, onSaved, editData }) {
   );
 }
 
-// ── Modal Plan de Pagos ─────────────────────────────────
 function ModalPlan({ deuda, onClose }) {
-  const [plan, setPlan]     = useState(null);
-  const [meses, setMeses]   = useState(12);
+  const [plan, setPlan]   = useState(null);
+  const [meses, setMeses] = useState(12);
   const [loading, setLoading] = useState(true);
-  const [showPago, setShowPago] = useState(false);
-  const [montoPago, setMontoPago] = useState('');
-  const [msgPago, setMsgPago]     = useState('');
 
-  useEffect(() => { fetchPlan(); }, [meses]);
+  // ── FIX: meses va directo como parámetro, no como closure
+  useEffect(() => {
+    async function fetchPlan() {
+      setLoading(true);
+      setPlan(null); // limpia la vista anterior mientras carga
+      try {
+        const res = await api.get(`/api/deudas/${deuda.id_deuda}/plan?meses=${meses}`);
+        setPlan(res.data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchPlan();
+  }, [meses, deuda.id_deuda]); // ambas dependencias declaradas correctamente
+
+  // ... resto igual
 
   async function fetchPlan() {
     setLoading(true);
@@ -160,48 +177,34 @@ function ModalPlan({ deuda, onClose }) {
     }
   }
 
-  async function handlePago(e) {
-    e.preventDefault();
-    try {
-      const res = await api.post(`/api/deudas/${deuda.id_deuda}/pagos`, { monto: montoPago });
-      setMsgPago(res.data.message);
-      setMontoPago('');
-      fetchPlan();
-    } catch (err) {
-      setMsgPago(err.response?.data?.error || 'Error al registrar pago');
-    }
-  }
+  const fmt = n => `$${parseFloat(n||0).toLocaleString('es-MX',{minimumFractionDigits:2})}`;
 
-  const fmt = (n) => `$${parseFloat(n||0).toLocaleString('es-MX',{minimumFractionDigits:2})}`;
-
-  // Datos para la mini gráfica de amortización
-  const chartData = plan?.tabla_amortizacion?.filter((_,i) => i % 3 === 0).map(row => ({
-    mes:      `M${row.mes}`,
-    capital:  row.capital,
-    interes:  row.interes,
-    saldo:    row.saldo,
+  const chartData = plan?.tabla_amortizacion?.slice(0, 12).map(row => ({
+    mes: `M${row.mes}`,
+    capital: row.capital,
+    interes: row.interes
   })) || [];
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl animate-fade-in-up">
+
         {/* Header */}
-        <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-t-2xl p-6 text-white">
-          <div className="flex justify-between items-start">
+        <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-5 rounded-t-2xl text-white">
+          <div className="flex justify-between">
             <div>
-              <h3 className="text-xl font-bold">{deuda.nombre}</h3>
-              <p className="text-orange-100 text-sm mt-1">Plan de pagos generado automáticamente</p>
+              <h3 className="text-lg font-bold">{deuda.nombre}</h3>
+              <p className="text-xs opacity-80">Plan de pagos</p>
             </div>
-            <button onClick={onClose} className="text-white/70 hover:text-white text-2xl leading-none">×</button>
+            <button onClick={onClose} className="text-xl">×</button>
           </div>
-          {/* Selector de plazo */}
-          <div className="flex gap-2 mt-4 flex-wrap">
-            {[6, 12, 18, 24, 36].map(m => (
-              <button key={m} onClick={() => setMeses(m)}
-                className={`px-3 py-1 rounded-full text-sm font-semibold transition-colors ${
-                  meses === m
-                    ? 'bg-white text-orange-600'
-                    : 'bg-white/20 hover:bg-white/30 text-white'
+
+          <div className="flex gap-2 mt-3 flex-wrap">
+            {[6,12,18,24].map(m => (
+              <button key={m}
+                onClick={() => setMeses(m)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                  meses === m ? 'bg-white text-orange-600' : 'bg-white/20'
                 }`}>
                 {m} meses
               </button>
@@ -209,99 +212,68 @@ function ModalPlan({ deuda, onClose }) {
           </div>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-5 space-y-5">
           {loading ? (
-            <div className="py-10 text-center text-gray-400">Calculando plan...</div>
+            <div className="text-center py-10 text-gray-400">Calculando...</div>
           ) : (
             <>
-              {/* Métricas del plan */}
+              {/* Métricas */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {[
-                  { label: 'Saldo actual',    value: fmt(plan.deuda.saldo_actual), color: 'border-orange-400' },
-                  { label: 'Cuota mensual',   value: fmt(plan.plan.cuota_mensual), color: 'border-blue-400'   },
-                  { label: 'Total a pagar',   value: fmt(plan.plan.total_a_pagar), color: 'border-gray-300'   },
-                  { label: 'Total intereses', value: fmt(plan.plan.total_intereses), color: 'border-red-300'  },
-                ].map((m, i) => (
-                  <div key={i} className={`border-l-4 ${m.color} pl-3 py-1`}>
-                    <p className="text-xs text-gray-400">{m.label}</p>
-                    <p className="text-base font-bold text-gray-800">{m.value}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Gráfica amortización */}
-              {chartData.length > 0 && (
                 <div>
-                  <p className="text-sm font-semibold text-gray-700 mb-2">Distribución capital vs interés por mes</p>
-                  <ResponsiveContainer width="100%" height={160}>
-                    <BarChart data={chartData} margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                      <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
-                      <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
-                      <Tooltip formatter={v => fmt(v)} />
-                      <Bar dataKey="capital" name="Capital"  stackId="a" fill="#34A853" radius={[0,0,0,0]} />
-                      <Bar dataKey="interes" name="Interés"  stackId="a" fill="#EA4335" radius={[4,4,0,0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <p className="text-xs text-gray-400">Saldo</p>
+                  <p className="font-bold">{fmt(plan.deuda.saldo_actual)}</p>
                 </div>
-              )}
-
-              {/* Tabla de amortización */}
-              <div>
-                <p className="text-sm font-semibold text-gray-700 mb-2">
-                  Tabla de amortización (primeros {Math.min(plan.tabla_amortizacion.length, 12)} meses)
-                </p>
-                <div className="overflow-x-auto rounded-lg border border-gray-100">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        {['Mes','Cuota','Capital','Interés','Saldo'].map(h => (
-                          <th key={h} className="text-left px-3 py-2 text-xs font-semibold text-gray-500">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {plan.tabla_amortizacion.slice(0, 12).map((row) => (
-                        <tr key={row.mes} className="border-t border-gray-50 hover:bg-gray-50 transition-colors">
-                          <td className="px-3 py-2 font-medium text-gray-700">{row.mes}</td>
-                          <td className="px-3 py-2 text-blue-600">{fmt(row.cuota)}</td>
-                          <td className="px-3 py-2 text-green-600">{fmt(row.capital)}</td>
-                          <td className="px-3 py-2 text-red-500">{fmt(row.interes)}</td>
-                          <td className="px-3 py-2 text-gray-600">{fmt(row.saldo)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div>
+                  <p className="text-xs text-gray-400">Cuota</p>
+                  <p className="font-bold text-blue-600">{fmt(plan.plan.cuota_mensual)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Total</p>
+                  <p className="font-bold">{fmt(plan.plan.total_a_pagar)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Intereses</p>
+                  <p className="font-bold text-red-500">{fmt(plan.plan.total_intereses)}</p>
                 </div>
               </div>
 
-              {/* Registrar pago */}
-              <div className="bg-blue-50 rounded-xl p-4">
-                <p className="text-sm font-bold text-gray-800 mb-3">Registrar abono</p>
-                {msgPago && (
-                  <div className={`text-sm rounded-lg p-2 mb-3 ${
-                    msgPago.includes('🎉') || msgPago.includes('correctamente')
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-red-100 text-red-600'
-                  }`}>
-                    {msgPago}
-                  </div>
-                )}
-                <form onSubmit={handlePago} className="flex gap-3">
-                  <input type="number" min="0.01" step="0.01"
-                    value={montoPago}
-                    onChange={e => setMontoPago(e.target.value)}
-                    placeholder="Monto del abono"
-                    required
-                    className="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  <button type="submit"
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg text-sm transition-colors">
-                    Abonar
-                  </button>
-                </form>
-                <p className="text-xs text-gray-400 mt-2">
-                  Cuota sugerida: <span className="font-semibold text-blue-600">{fmt(plan.plan.cuota_mensual)}</span> / mes
-                </p>
+              {/* Gráfica */}
+              <div>
+                <p className="text-sm font-semibold mb-2 text-gray-700">Capital vs Interés</p>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={chartData}>
+                    <CartesianGrid stroke="#eee" strokeDasharray="3 3" />
+                    <XAxis dataKey="mes" />
+                    <YAxis tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
+                    <Tooltip formatter={v => fmt(v)} />
+                    <Bar dataKey="capital" stackId="a" fill="#34A853" />
+                    <Bar dataKey="interes" stackId="a" fill="#EA4335" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Tabla */}
+              <div className="overflow-x-auto border rounded-xl">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {['Mes','Cuota','Capital','Interés','Saldo'].map(h => (
+                        <th key={h} className="p-2 text-left">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {plan.tabla_amortizacion.slice(0, 8).map(row => (
+                      <tr key={row.mes} className="border-t">
+                        <td className="p-2">{row.mes}</td>
+                        <td className="p-2 text-blue-600">{fmt(row.cuota)}</td>
+                        <td className="p-2 text-green-600">{fmt(row.capital)}</td>
+                        <td className="p-2 text-red-500">{fmt(row.interes)}</td>
+                        <td className="p-2">{fmt(row.saldo)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </>
           )}
@@ -311,14 +283,14 @@ function ModalPlan({ deuda, onClose }) {
   );
 }
 
-// ── Página principal ─────────────────────────────────────
+// ── PAGE ─────────────────────────────────────────────
 export default function DeudasPage() {
-  const router   = useRouter();
-  const [deudas, setDeudas]       = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [showForm, setShowForm]   = useState(false);
-  const [editando, setEditando]   = useState(null);
+  const router = useRouter();
+  const [deudas,    setDeudas]    = useState([]);
+  const [loading,   setLoading]   = useState(true);
   const [planDeuda, setPlanDeuda] = useState(null);
+  const [showForm,  setShowForm]  = useState(false);
+  const [confirm,   setConfirm]   = useState(null); // { id, nombre }
 
   useEffect(() => {
     if (!localStorage.getItem('token')) { router.push('/login'); return; }
@@ -329,26 +301,26 @@ export default function DeudasPage() {
     try {
       const res = await api.get('/api/deudas');
       setDeudas(res.data.deudas);
-    } catch (err) {
-      console.error(err);
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleDelete(id) {
-    if (!confirm('¿Eliminar esta deuda y todos sus pagos?')) return;
+  async function handleDelete() {
     try {
-      await api.delete(`/api/deudas/${id}`);
+      await api.delete(`/api/deudas/${confirm.id}`);
+      toast.success('Deuda eliminada ✓');
+      setConfirm(null);
       fetchDeudas();
-    } catch (err) {
-      console.error(err);
+    } catch {
+      toast.error('Error al eliminar la deuda');
     }
   }
 
-  const fmt    = n => `$${parseFloat(n||0).toLocaleString('es-MX',{minimumFractionDigits:2})}`;
+  const fmt     = n => `$${parseFloat(n||0).toLocaleString('es-MX',{minimumFractionDigits:2})}`;
   const activas = deudas.filter(d => d.estado === 'activa');
-  const totalDeuda = activas.reduce((s,d) => s + parseFloat(d.saldo_actual), 0);
+
+  if (loading) return <LoadingSpinner text="Cargando deudas..." />;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -356,80 +328,93 @@ export default function DeudasPage() {
 
       {/* Modales */}
       {showForm && (
-        <FormDeuda
-          editData={editando}
-          onClose={() => { setShowForm(false); setEditando(null); }}
-          onSaved={() => { setShowForm(false); setEditando(null); fetchDeudas(); }}
+        <FormModal
+          onClose={() => setShowForm(false)}
+          onSaved={() => { setShowForm(false); fetchDeudas(); }}
         />
       )}
       {planDeuda && (
-        <ModalPlan deuda={planDeuda} onClose={() => { setPlanDeuda(null); fetchDeudas(); }} />
+        <ModalPlan deuda={planDeuda} onClose={() => setPlanDeuda(null)} />
+      )}
+      {confirm && (
+        <ConfirmModal
+          title="¿Eliminar deuda?"
+          message={`Se eliminará "${confirm.nombre}" y todos sus pagos. Esta acción no se puede deshacer.`}
+          onConfirm={handleDelete}
+          onCancel={() => setConfirm(null)}
+        />
       )}
 
-      <main className="max-w-5xl mx-auto p-6 space-y-6">
+      <main className="max-w-5xl mx-auto p-6 space-y-5">
+
         {/* Header */}
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center animate-fade-in-up">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">Mis Deudas</h2>
-            <p className="text-gray-400 text-sm mt-0.5">
+            <h2 className="text-2xl font-black text-gray-800">Mis Deudas</h2>
+            <p className="text-sm text-gray-400 mt-0.5">
               {activas.length} deuda{activas.length !== 1 ? 's' : ''} activa{activas.length !== 1 ? 's' : ''}
               {activas.length > 0 && (
-                <> · Saldo total: <span className="text-orange-500 font-semibold">{fmt(totalDeuda)}</span></>
+                <> · Saldo total: <span className="text-orange-500 font-bold">
+                  {fmt(activas.reduce((s,d) => s + parseFloat(d.saldo_actual), 0))}
+                </span></>
               )}
             </p>
           </div>
-          <button onClick={() => { setEditando(null); setShowForm(true); }}
-            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+          {/* ── BOTÓN AGREGAR ── */}
+          <button
+            onClick={() => setShowForm(true)}
+            className="bg-orange-500 hover:bg-orange-600 text-white
+              px-4 py-2.5 rounded-xl text-sm font-bold transition-colors
+              shadow-sm hover:shadow-md">
             + Nueva deuda
           </button>
         </div>
 
-        {/* Lista */}
-        {loading ? (
-          <div className="py-16 text-center text-gray-400">Cargando...</div>
-        ) : deudas.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow p-12 text-center">
-            <p className="text-5xl mb-3">🎉</p>
-            <p className="text-gray-700 font-semibold">¡Sin deudas registradas!</p>
-            <p className="text-gray-400 text-sm mt-1">Cuando tengas un crédito activo, agrégalo aquí.</p>
-          </div>
+        {deudas.length === 0 ? (
+          <EmptyState
+            icon="🎉"
+            title="Sin deudas registradas"
+            description="Cuando tengas un crédito activo, agrégalo aquí para hacer seguimiento."
+            action="+ Agregar deuda"
+            onAction={() => setShowForm(true)}
+          />
         ) : (
           <div className="space-y-4">
             {deudas.map(d => {
               const progreso = d.monto_total > 0
-                ? ((d.monto_total - d.saldo_actual) / d.monto_total * 100)
+                ? ((d.monto_total - d.saldo_actual) / d.monto_total) * 100
                 : 0;
               const est = ESTADO_COLOR[d.estado] || ESTADO_COLOR.activa;
 
               return (
                 <div key={d.id_deuda}
-                  className="bg-white rounded-2xl shadow-sm p-5 hover:shadow-md transition-shadow">
-                  <div className="flex items-start justify-between mb-3">
+                  className="bg-white rounded-2xl shadow-sm p-5 card-hover animate-fade-in-up">
+
+                  <div className="flex justify-between items-start">
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-gray-800 text-lg">{d.nombre}</h3>
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${est.bg} ${est.text}`}>
+                      <h3 className="font-bold text-gray-800">{d.nombre}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${est.bg} ${est.text}`}>
                           {est.label}
                         </span>
+                        <span className="text-xs text-gray-400">
+                          {d.interes}% anual
+                        </span>
                       </div>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        Interés: {d.interes}% anual
-                        {d.fecha_fin && ` · Vence: ${d.fecha_fin?.split('T')[0]}`}
-                      </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xl font-bold text-orange-500">{fmt(d.saldo_actual)}</p>
+                      <p className="font-bold text-orange-500 text-lg">{fmt(d.saldo_actual)}</p>
                       <p className="text-xs text-gray-400">de {fmt(d.monto_total)}</p>
                     </div>
                   </div>
 
                   {/* Barra de progreso */}
-                  <div className="mb-4">
+                  <div className="mt-3 mb-4">
                     <div className="flex justify-between text-xs text-gray-400 mb-1">
                       <span>Pagado: {fmt(d.total_pagado)}</span>
-                      <span>{progreso.toFixed(1)}% completado</span>
+                      <span>{progreso.toFixed(1)}%</span>
                     </div>
-                    <div className="w-full bg-gray-100 rounded-full h-2">
+                    <div className="w-full bg-gray-100 h-2 rounded-full">
                       <div
                         className="bg-gradient-to-r from-orange-400 to-green-500 h-2 rounded-full transition-all duration-500"
                         style={{ width: `${Math.min(progreso, 100)}%` }}
@@ -437,26 +422,25 @@ export default function DeudasPage() {
                     </div>
                   </div>
 
-                  {/* Acciones */}
-                  <div className="flex gap-2 flex-wrap">
+                  {/* ── BOTONES ── */}
+                  <div className="flex gap-2">
                     <button
                       onClick={() => setPlanDeuda(d)}
-                      className="flex-1 bg-orange-50 hover:bg-orange-100 text-orange-600 font-semibold py-2 rounded-lg text-sm transition-colors">
-                      📊 Ver plan de pagos
+                      className="flex-1 bg-orange-50 hover:bg-orange-100
+                        text-orange-600 font-semibold py-2 rounded-lg text-sm transition-colors">
+                      📊 Ver plan
                     </button>
-                    <button
-                      onClick={() => { setEditando(d); setShowForm(true); }}
-                      className="px-4 bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold py-2 rounded-lg text-sm transition-colors">
-                      Editar
-                    </button>
+                    {/* ── BOTÓN ELIMINAR ── */}
                     {d.estado !== 'pagada' && (
                       <button
-                        onClick={() => handleDelete(d.id_deuda)}
-                        className="px-4 bg-red-50 hover:bg-red-100 text-red-500 font-semibold py-2 rounded-lg text-sm transition-colors">
-                        Eliminar
+                        onClick={() => setConfirm({ id: d.id_deuda, nombre: d.nombre })}
+                        className="px-4 bg-red-50 hover:bg-red-100
+                          text-red-500 font-semibold py-2 rounded-lg text-sm transition-colors">
+                        🗑️ Eliminar
                       </button>
                     )}
                   </div>
+
                 </div>
               );
             })}
