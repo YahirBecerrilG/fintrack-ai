@@ -163,7 +163,6 @@ function ModalPlan({ deuda, onClose }) {
     fetchPlan();
   }, [meses, deuda.id_deuda]); // ambas dependencias declaradas correctamente
 
-  // ... resto igual
 
   async function fetchPlan() {
     setLoading(true);
