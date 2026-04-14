@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -24,8 +24,19 @@ const NAV_LINKS = [
 
 export default function Navbar() {
   const pathname = usePathname();
-  const router   = useRouter();
+  const router = useRouter();
+
   const [open, setOpen] = useState(false);
+  const [usuario, setUsuario] = useState(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const user = localStorage.getItem('usuario');
+    if (user) {
+      setUsuario(JSON.parse(user));
+    }
+    setMounted(true);
+  }, []);
 
   function logout() {
     localStorage.removeItem('token');
@@ -33,20 +44,17 @@ export default function Navbar() {
     router.push('/login');
   }
 
-  const usuario = typeof window !== 'undefined'
-    ? JSON.parse(localStorage.getItem('usuario') || '{}')
-    : {};
+  // 🔥 Evita hydration error
+  if (!mounted) return null;
 
   return (
-    <nav className="bg-white/80 backdrop-blur border-b border-gray-200 px-4 md:px-6 py-3
-      sticky top-0 z-40">
+    <nav className="bg-white/80 backdrop-blur border-b border-gray-200 px-4 md:px-6 py-3 sticky top-0 z-40">
 
       <div className="flex justify-between items-center">
 
         {/* Logo */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600
-            flex items-center justify-center text-white font-bold shadow-sm">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold shadow-sm">
             $
           </div>
 
@@ -84,7 +92,7 @@ export default function Navbar() {
           })}
         </div>
 
-        {/* Usuario + Mobile button */}
+        {/* Usuario + Mobile */}
         <div className="flex items-center gap-3">
 
           {/* Usuario desktop */}
@@ -98,15 +106,13 @@ export default function Navbar() {
               </p>
             </div>
 
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-gray-700 to-gray-900
-              flex items-center justify-center text-white text-sm font-semibold">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-white text-sm font-semibold">
               {usuario?.nombre?.[0]?.toUpperCase() || 'U'}
             </div>
 
             <button
               onClick={logout}
-              className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-600
-                bg-gray-100 hover:bg-red-50 px-3 py-1.5 rounded-lg"
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-600 bg-gray-100 hover:bg-red-50 px-3 py-1.5 rounded-lg"
             >
               <LogOut size={14} />
               Salir
